@@ -5,6 +5,8 @@ import { Token } from '../tokens/token'
 
 type HashValueTokens = Record<string, Token | undefined>
 
+const EMPTY_HASH: Record<string, any> = Object.freeze({}) as Record<string, any>
+
 /**
  * Key-Value Pairs Representing Tag Arguments
  * Example:
@@ -23,10 +25,13 @@ export class Hash {
     }
   }
 
-  * render (ctx: Context): Generator<unknown, Record<string, any>, unknown> {
+  render (ctx: Context): Record<string, any> {
+    const source = this.hash
+    const keys = Object.keys(source)
+    if (keys.length === 0) return EMPTY_HASH
     const hash: Record<string, any> = {}
-    for (const key of Object.keys(this.hash)) {
-      hash[key] = this.hash[key] === undefined ? true : yield evalToken(this.hash[key], ctx)
+    for (const key of keys) {
+      hash[key] = source[key] === undefined ? true : evalToken(source[key], ctx)
     }
     return hash
   }

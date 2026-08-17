@@ -38,9 +38,9 @@ export default class extends Tag {
     stream.start()
   }
 
-  * render (ctx: Context, emitter: Emitter): Generator<unknown, void, unknown> {
-    let collection = toEnumerable(yield evalToken(this.collection, ctx))
-    const args = (yield this.args.render(ctx)) as Record<string, any>
+  render (ctx: Context, emitter: Emitter): void {
+    let collection = toEnumerable(evalToken(this.collection, ctx))
+    const args = this.args.render(ctx)
     const offset = args.offset || 0
     const limit = (args.limit === undefined) ? collection.length : args.limit
 
@@ -59,7 +59,7 @@ export default class extends Tag {
         emitter.write(`<tr class="row${tablerowloop.row()}">`)
       }
       emitter.write(`<td class="col${tablerowloop.col()}">`)
-      yield r.renderTemplates(this.templates, ctx, emitter)
+      r.renderTemplates(this.templates, ctx, emitter)
       emitter.write('</td>')
     }
     if (collection.length) emitter.write('</tr>')

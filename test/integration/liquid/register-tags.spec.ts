@@ -9,18 +9,22 @@ describe('liquid#registerTag()', function () {
     const html = await liquid.parseAndRender(`A{% simple-string %}C`)
     return expect(html).toBe('ABC')
   })
-  it('should support async tag render', async () => {
+  // SYNC FORK: async tag render functions are rejected at registration time
+  it('should reject async tag render at registration time', () => {
     const liquid = new Liquid()
-    liquid.registerTag('async-string', {
-      render: async () => 'B'
-    })
-    const html = await liquid.parseAndRender(`A{% async-string %}C`)
-    return expect(html).toBe('ABC')
+    // NOTE: eval is used because ts-jest compiles `async () => ...` down to a
+    // plain function at the ES6 target; eval'd code keeps the native AsyncFunction.
+    expect(() => liquid.registerTag('async-string', {
+      render: eval('(async () => "B")')
+    })).toThrow(/async tag "async-string" is not supported in the sync-only build/)
+    expect(() => liquid.registerTag('async-string', {
+      render: function * () { return 'B' } as any
+    })).toThrow(/async tag "async-string" is not supported in the sync-only build/)
   })
   it('should have access to ctx in render()', async () => {
     const liquid = new Liquid()
     liquid.registerTag('dynamic-string', {
-      render: async (ctx) => ctx.get(['c'])
+      render: (ctx) => ctx.get(['c'])
     })
     const html = await liquid.parseAndRender(`A{% dynamic-string %}C`, {
       c: 'B'
@@ -31,7 +35,7 @@ describe('liquid#registerTag()', function () {
     const liquid = new Liquid()
     liquid.registerTag('argument-reflector', {
       parse: function (token) { this.variable = token.args.split('=')[1] },
-      render: async function (ctx) { return ctx.get(this.variable) }
+      render: function (ctx) { return ctx.get(this.variable) }
     })
     const html = await liquid.parseAndRender(`A{% argument-reflector variable=c %}C`, {
       c: 'B'

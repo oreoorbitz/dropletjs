@@ -48,10 +48,12 @@ describe('Liquid', function () {
       const src = '{{ foo }}'
       return expect(engine.parseAndRender(src, {}, { strictVariables: true })).rejects.toThrow(/undefined variable/)
     })
-    it('should support async variables in output', async () => {
+    // SYNC FORK: Promise scope values are no longer awaited; a Promise output
+    // renders as its default string representation.
+    it('should not await async variables in output (sync-only build)', async () => {
       const src = '{{ foo }}'
       const html = await engine.parseAndRender(src, { foo: Promise.resolve('FOO') })
-      expect(html).toBe('FOO')
+      expect(html).toBe('[object Promise]')
     })
     it('should parse and render with Context', async function () {
       const html = await engine.parseAndRender('{{foo}}', new Context({ foo: 'FOO' }))

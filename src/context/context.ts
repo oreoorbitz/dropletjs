@@ -3,7 +3,7 @@ import { Drop } from '../drop/drop'
 import { __assign } from 'tslib'
 import { NormalizedFullOptions, defaultOptions, RenderOptions } from '../liquid-options'
 import { createScope, Scope } from './scope'
-import { hasOwnProperty, isArray, isNil, isUndefined, isString, isFunction, isNumber, toLiquid, InternalUndefinedVariableError, toValueSync, isObject, Limiter, toValue, readArrayElement } from '../util'
+import { hasOwnProperty, isArray, isNil, isUndefined, isString, isFunction, isNumber, toLiquid, InternalUndefinedVariableError, isObject, Limiter, toValue, readArrayElement } from '../util'
 
 type PropertyKey = string | number;
 
@@ -76,22 +76,32 @@ export class Context {
     return this.getSync(paths)
   }
   public getSync (paths: PropertyKey[]): unknown {
-    return toValueSync(this._get(paths))
+    return this._get(paths)
   }
-  public * _get (paths: (PropertyKey | Drop)[]): IterableIterator<unknown> {
+  public _get (paths: (PropertyKey | Drop)[]): unknown {
     const scope = this.findScope(paths[0] as string) // first prop should always be a string
-    return yield this._getFromScope(scope, paths)
+    return this._getFromScope(scope, paths)
   }
   /**
    * @deprecated use `_get()` instead
    */
-  public getFromScope (scope: unknown, paths: PropertyKey[] | string): IterableIterator<unknown> {
-    return toValueSync(this._getFromScope(scope, paths))
+  public getFromScope (scope: unknown, paths: PropertyKey[] | string): unknown {
+    return this._getFromScope(scope, paths)
   }
-  public * _getFromScope (scope: unknown, paths: (PropertyKey | Drop)[] | string, strictVariables = this.strictVariables): IterableIterator<unknown> {
-    if (isString(paths)) paths = paths.split('.')
+  public _getFromScope (scope: unknown, paths: (PropertyKey | Drop)[] | string, strictVariables = this.strictVariables): unknown {
+    if (isString(paths)) {
+      // fast path: avoid split('.') allocation for single-segment paths
+      if ((paths as string).indexOf('.') === -1) {
+        scope = this.readProperty(scope as object, paths as string)
+        if (strictVariables && isUndefined(scope)) {
+          throw new InternalUndefinedVariableError(paths as string)
+        }
+        return scope
+      }
+      paths = (paths as string).split('.')
+    }
     for (let i = 0; i < paths.length; i++) {
-      scope = yield this.readProperty(scope as object, paths[i])
+      scope = this.readProperty(scope as object, paths[i])
       if (strictVariables && isUndefined(scope)) {
         throw new InternalUndefinedVariableError((paths as string[]).slice(0, i + 1).join!('.'))
       }

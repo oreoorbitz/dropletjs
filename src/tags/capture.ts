@@ -28,9 +28,9 @@ export default class extends Tag {
     throw this.tokenizer.error('invalid capture name')
   }
 
-  * render (ctx: Context): Generator<unknown, void, string> {
+  render (ctx: Context): void {
     const r = this.liquid.renderer
-    const html = yield r.renderTemplates(this.templates, ctx)
+    const html = r.renderTemplates(this.templates, ctx)
     ctx.bottom()[this.variable] = html
   }
 

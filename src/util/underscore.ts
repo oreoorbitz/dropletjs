@@ -210,14 +210,16 @@ export function escapeRegExp (text: string) {
 }
 
 /** Return an array containing unique elements from _array_. Works with nested arrays and objects. */
-export function * strictUniq<T> (array: Array<T>): Generator<T> {
+export function strictUniq<T> (array: Array<T>): T[] {
   const seen = new Set()
+  const result: T[] = []
 
   for (const element of array) {
     const key = JSON.stringify(element)
     if (!seen.has(key)) {
       seen.add(key)
-      yield element
+      result.push(element)
     }
   }
+  return result
 }

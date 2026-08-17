@@ -44,21 +44,23 @@ describe('drop/drop', function () {
     const html = await liquid.parseAndRender(`{{obj.foo}}`, { obj: new CustomDropWithMethodMissing() })
     expect(html).toBe('FOO')
   })
-  it('should call corresponding promise method', async function () {
+  // SYNC FORK: Drop methods/properties returning Promises are no longer awaited;
+  // they render as the Promise's default string representation.
+  it('should not await promise method (sync-only build)', async function () {
     const html = await liquid.parseAndRender(`{{obj.getName}}`, { obj: new PromiseDrop() })
-    expect(html).toBe('GET NAME')
+    expect(html).toBe('[object Promise]')
   })
-  it('should read corresponding promise property', async function () {
+  it('should not await promise property (sync-only build)', async function () {
     const html = await liquid.parseAndRender(`{{obj.name}}`, { obj: new PromiseDrop() })
-    expect(html).toBe('NAME')
+    expect(html).toBe('[object Promise]')
   })
-  it('should resolve before calling filters', async function () {
+  it('should not resolve before calling filters (sync-only build)', async function () {
     const html = await liquid.parseAndRender(`{{obj.name | downcase}}`, { obj: new PromiseDrop() })
-    expect(html).toBe('name')
+    expect(html).toBe('[object promise]')
   })
-  it('should support promise returned by liquidMethodMissing', async function () {
+  it('should not await promise returned by liquidMethodMissing (sync-only build)', async function () {
     const html = await liquid.parseAndRender(`{{obj.foo}}`, { obj: new PromiseDrop() })
-    expect(html).toBe('FOO')
+    expect(html).toBe('[object Promise]')
   })
   it('should respect valueOf', async () => {
     class CustomDrop extends Drop {

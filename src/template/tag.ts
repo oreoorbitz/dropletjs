@@ -6,7 +6,7 @@ import type { TopLevelToken, TagToken } from '../tokens'
 import type { Template } from './template'
 import type { Liquid } from '../liquid'
 
-export type TagRenderReturn = Generator<unknown, unknown, unknown> | Promise<unknown> | unknown
+export type TagRenderReturn = unknown
 
 export abstract class Tag extends TemplateImpl<TagToken> implements Template {
   public name: string

@@ -9,13 +9,9 @@ describe('Expression', function () {
   const ctx = new Context({})
   const create = (str: string) => new Tokenizer(str).readExpression()
 
-  it('should throw when context not defined', done => {
-    toPromise(create('foo').evaluate(undefined!, false))
-      .then(() => done(new Error('should not resolved')))
-      .catch(err => {
-        expect(err.message).toMatch(/context not defined/)
-        done()
-      })
+  it('should throw when context not defined', () => {
+    // SYNC FORK: evaluate() is now a plain sync function that throws directly
+    expect(() => create('foo').evaluate(undefined!, false)).toThrow(/context not defined/)
   })
 
   describe('single value', function () {

@@ -25,14 +25,26 @@ describe('liquid#registerFilter()', function () {
   })
 
   describe('async filters', () => {
-    it('should support async filter', async () => {
+    // SYNC FORK: filters returning Promises are rejected with a clear error at render time
+    it('should reject async filter', async () => {
       liquid.registerFilter('get_user_data', function (userId) {
         return Promise.resolve({ userId, userName: userId.toUpperCase() })
       })
       const src = `{{ userId | get_user_data | json }}`
-      const dst = '{"userId":"alice","userName":"ALICE"}'
-      const html = await liquid.parseAndRender(src, { userId: 'alice' })
-      return expect(html).toBe(dst)
+      await expect(liquid.parseAndRender(src, { userId: 'alice' }))
+        .rejects.toThrow(/async filter "get_user_data" is not supported in the sync-only build/)
+    })
+    // SYNC FORK: generator/async-function filters are rejected at registration time
+    it('should reject async function filter at registration time', () => {
+      // NOTE: eval is used because ts-jest compiles `async function` down to a
+      // plain function at the ES6 target; eval'd code keeps the native AsyncFunction.
+      const asyncFn = eval('(async function (v) { return v })')
+      expect(() => liquid.registerFilter('async_fn', asyncFn))
+        .toThrow(/async filter "async_fn" is not supported in the sync-only build/)
+    })
+    it('should reject generator filter at registration time', () => {
+      expect(() => liquid.registerFilter('gen_fn', function * (v: any) { return v } as any))
+        .toThrow(/async filter "gen_fn" is not supported in the sync-only build/)
     })
   })
 

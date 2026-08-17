@@ -25,44 +25,44 @@ export const reverse = argumentsToValue(function (this: FilterImpl, v: any[]) {
   return [...array].reverse()
 })
 
-function * sortBy<T> (this: FilterImpl, arr: T[], property: string | undefined, comparator: (a: unknown, b: unknown) => number): IterableIterator<unknown> {
+function sortBy<T> (this: FilterImpl, arr: T[], property: string | undefined, comparator: (a: unknown, b: unknown) => number): unknown[] {
   const values: [T, unknown][] = []
   const array = toArray(arr)
   this.context.memoryLimit.use(array.length)
   for (const item of array) {
     values.push([
       item,
-      property ? yield this.context._getFromScope(item, stringify(property).split('.'), false) : item
+      property ? this.context._getFromScope(item, stringify(property).split('.'), false) : item
     ])
   }
   return values.sort((lhs, rhs) => comparator(lhs[1], rhs[1])).map(tuple => tuple[0])
 }
 
-export function * sort<T> (this: FilterImpl, arr: T[], property?: string): IterableIterator<unknown> {
-  return yield * sortBy.call(this, arr, property, orderedCompare)
+export function sort<T> (this: FilterImpl, arr: T[], property?: string): unknown {
+  return sortBy.call(this, arr, property, orderedCompare)
 }
 
-export function * sort_natural<T> (this: FilterImpl, arr: T[], property?: string): IterableIterator<unknown> {
-  return yield * sortBy.call(this, arr, property, caseInsensitiveCompare)
+export function sort_natural<T> (this: FilterImpl, arr: T[], property?: string): unknown {
+  return sortBy.call(this, arr, property, caseInsensitiveCompare)
 }
 
 export const size = (v: string | any[]) => (v && v.length) || 0
 
-export function * map (this: FilterImpl, arr: Scope[], property: string): IterableIterator<unknown> {
+export function map (this: FilterImpl, arr: Scope[], property: string): unknown[] {
   const results = []
   const array = toArray(arr)
   this.context.memoryLimit.use(array.length)
   for (const item of array) {
-    results.push(yield this.context._getFromScope(item, stringify(property), false))
+    results.push(this.context._getFromScope(item, stringify(property), false))
   }
   return results
 }
 
-export function * sum (this: FilterImpl, arr: Scope[], property?: string): IterableIterator<unknown> {
+export function sum (this: FilterImpl, arr: Scope[], property?: string): number {
   let sum = 0
   const array = toArray(arr)
   for (const item of array) {
-    const data = Number(property ? yield this.context._getFromScope(item, stringify(property), false) : item)
+    const data = Number(property ? this.context._getFromScope(item, stringify(property), false) : item)
     sum += Number.isNaN(data) ? 0 : data
   }
   return sum
@@ -131,69 +131,69 @@ function expectedMatcher (this: FilterImpl, expected: any): (v: any) => boolean 
   }
 }
 
-function * filter<T extends object> (this: FilterImpl, include: boolean, arr: T[], property: string, expected: any): IterableIterator<unknown> {
+function filter<T extends object> (this: FilterImpl, include: boolean, arr: T[], property: string, expected: any): unknown[] {
   const values: unknown[] = []
   arr = toArray(arr)
   this.context.memoryLimit.use(arr.length)
   const token = new Tokenizer(stringify(property)).readScopeValue()
   for (const item of arr) {
-    values.push(yield evalToken(token, this.context.spawn(item)))
+    values.push(evalToken(token, this.context.spawn(item)))
   }
   const matcher = expectedMatcher.call(this, expected)
   return Array.prototype.filter.call(arr, (_, i) => matcher(values[i]) === include)
 }
 
-function * filter_exp<T extends object> (this: FilterImpl, include: boolean, arr: T[], itemName: string, exp: string): IterableIterator<unknown> {
+function filter_exp<T extends object> (this: FilterImpl, include: boolean, arr: T[], itemName: string, exp: string): unknown[] {
   const filtered: unknown[] = []
   const keyTemplate = new Value(stringify(exp), this.liquid)
   const array = toArray(arr)
   this.context.memoryLimit.use(array.length)
   for (const item of array) {
     this.context.push({ [itemName]: item })
-    const value = yield keyTemplate.value(this.context)
+    const value = keyTemplate.value(this.context)
     this.context.pop()
     if (value === include) filtered.push(item)
   }
   return filtered
 }
 
-export function * where<T extends object> (this: FilterImpl, arr: T[], property: string, expected?: any): IterableIterator<unknown> {
-  return yield * filter.call(this, true, arr, property, expected)
+export function where<T extends object> (this: FilterImpl, arr: T[], property: string, expected?: any): unknown {
+  return filter.call(this, true, arr, property, expected)
 }
 
-export function * reject<T extends object> (this: FilterImpl, arr: T[], property: string, expected?: any): IterableIterator<unknown> {
-  return yield * filter.call(this, false, arr, property, expected)
+export function reject<T extends object> (this: FilterImpl, arr: T[], property: string, expected?: any): unknown {
+  return filter.call(this, false, arr, property, expected)
 }
 
-export function * where_exp<T extends object> (this: FilterImpl, arr: T[], itemName: string, exp: string): IterableIterator<unknown> {
-  return yield * filter_exp.call(this, true, arr, itemName, exp)
+export function where_exp<T extends object> (this: FilterImpl, arr: T[], itemName: string, exp: string): unknown {
+  return filter_exp.call(this, true, arr, itemName, exp)
 }
 
-export function * reject_exp<T extends object> (this: FilterImpl, arr: T[], itemName: string, exp: string): IterableIterator<unknown> {
-  return yield * filter_exp.call(this, false, arr, itemName, exp)
+export function reject_exp<T extends object> (this: FilterImpl, arr: T[], itemName: string, exp: string): unknown {
+  return filter_exp.call(this, false, arr, itemName, exp)
 }
 
-export function * group_by<T extends object> (this: FilterImpl, arr: T[], property: string): IterableIterator<unknown> {
+export function group_by<T extends object> (this: FilterImpl, arr: T[], property: string): unknown {
   const map = new Map()
   arr = toEnumerable(arr)
   const token = new Tokenizer(stringify(property)).readScopeValue()
   this.context.memoryLimit.use(arr.length)
   for (const item of arr) {
-    const key = yield evalToken(token, this.context.spawn(item))
+    const key = evalToken(token, this.context.spawn(item))
     if (!map.has(key)) map.set(key, [])
     map.get(key).push(item)
   }
   return [...map.entries()].map(([name, items]) => ({ name, items }))
 }
 
-export function * group_by_exp<T extends object> (this: FilterImpl, arr: T[], itemName: string, exp: string): IterableIterator<unknown> {
+export function group_by_exp<T extends object> (this: FilterImpl, arr: T[], itemName: string, exp: string): unknown {
   const map = new Map()
   const keyTemplate = new Value(stringify(exp), this.liquid)
   arr = toEnumerable(arr)
   this.context.memoryLimit.use(arr.length)
   for (const item of arr) {
     this.context.push({ [itemName]: item })
-    const key = yield keyTemplate.value(this.context)
+    const key = keyTemplate.value(this.context)
     this.context.pop()
     if (!map.has(key)) map.set(key, [])
     map.get(key).push(item)
@@ -201,54 +201,54 @@ export function * group_by_exp<T extends object> (this: FilterImpl, arr: T[], it
   return [...map.entries()].map(([name, items]) => ({ name, items }))
 }
 
-function * search<T extends object> (this: FilterImpl, arr: T[], property: string, expected: string): IterableIterator<unknown> {
+function search<T extends object> (this: FilterImpl, arr: T[], property: string, expected: string): [number, T] | undefined {
   const token = new Tokenizer(stringify(property)).readScopeValue()
   const array = toArray(arr)
   const matcher = expectedMatcher.call(this, expected)
   for (let index = 0; index < array.length; index++) {
-    const value = yield evalToken(token, this.context.spawn(array[index]))
+    const value = evalToken(token, this.context.spawn(array[index]))
     if (matcher(value)) return [index, array[index]]
   }
 }
 
-function * search_exp<T extends object> (this: FilterImpl, arr: T[], itemName: string, exp: string): IterableIterator<unknown> {
+function search_exp<T extends object> (this: FilterImpl, arr: T[], itemName: string, exp: string): [number, T] | undefined {
   const predicate = new Value(stringify(exp), this.liquid)
   const array = toArray(arr)
   for (let index = 0; index < array.length; index++) {
     this.context.push({ [itemName]: array[index] })
-    const value = yield predicate.value(this.context)
+    const value = predicate.value(this.context)
     this.context.pop()
     if (value) return [index, array[index]]
   }
 }
 
-export function * has<T extends object> (this: FilterImpl, arr: T[], property: string, expected?: any): IterableIterator<unknown> {
-  const result = yield * search.call(this, arr, property, expected)
+export function has<T extends object> (this: FilterImpl, arr: T[], property: string, expected?: any): boolean {
+  const result = search.call(this, arr, property, expected)
   return !!result
 }
 
-export function * has_exp<T extends object> (this: FilterImpl, arr: T[], itemName: string, exp: string): IterableIterator<unknown> {
-  const result = yield * search_exp.call(this, arr, itemName, exp)
+export function has_exp<T extends object> (this: FilterImpl, arr: T[], itemName: string, exp: string): boolean {
+  const result = search_exp.call(this, arr, itemName, exp)
   return !!result
 }
 
-export function * find_index<T extends object> (this: FilterImpl, arr: T[], property: string, expected?: any): IterableIterator<unknown> {
-  const result = yield * search.call(this, arr, property, expected)
+export function find_index<T extends object> (this: FilterImpl, arr: T[], property: string, expected?: any): unknown {
+  const result = search.call(this, arr, property, expected)
   return result ? result[0] : undefined
 }
 
-export function * find_index_exp<T extends object> (this: FilterImpl, arr: T[], itemName: string, exp: string): IterableIterator<unknown> {
-  const result = yield * search_exp.call(this, arr, itemName, exp)
+export function find_index_exp<T extends object> (this: FilterImpl, arr: T[], itemName: string, exp: string): unknown {
+  const result = search_exp.call(this, arr, itemName, exp)
   return result ? result[0] : undefined
 }
 
-export function * find<T extends object> (this: FilterImpl, arr: T[], property: string, expected?: any): IterableIterator<unknown> {
-  const result = yield * search.call(this, arr, property, expected)
+export function find<T extends object> (this: FilterImpl, arr: T[], property: string, expected?: any): unknown {
+  const result = search.call(this, arr, property, expected)
   return result ? result[1] : undefined
 }
 
-export function * find_exp<T extends object> (this: FilterImpl, arr: T[], itemName: string, exp: string): IterableIterator<unknown> {
-  const result = yield * search_exp.call(this, arr, itemName, exp)
+export function find_exp<T extends object> (this: FilterImpl, arr: T[], itemName: string, exp: string): unknown {
+  const result = search_exp.call(this, arr, itemName, exp)
   return result ? result[1] : undefined
 }
 

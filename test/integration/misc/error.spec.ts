@@ -84,7 +84,6 @@ describe('error', function () {
         root: '/'
       })
       engine.registerTag('throwingTag', { render: throwIntendedError })
-      engine.registerTag('rejectingTag', { render: rejectIntendedError })
       engine.registerFilter('throwingFilter', throwIntendedError)
     })
     it('should throw RenderError when tag throws', async function () {
@@ -94,12 +93,14 @@ describe('error', function () {
         message: expect.stringContaining('intended error')
       })
     })
-    it('should throw RenderError when tag rejects', async function () {
-      const src = '{%rejectingTag%}'
-      await expect(engine.parseAndRender(src)).rejects.toMatchObject({
-        name: 'RenderError',
-        message: expect.stringContaining('intended reject')
-      })
+    // SYNC FORK: async (promise-rejecting) tags are rejected at registration time
+    it('should reject async tag at registration time', function () {
+      // NOTE: a generator function is used because ts-jest compiles `async function`
+      // down to a plain function at the ES6 target; generator functions remain detectable.
+      expect(() => engine.registerTag('rejectingTag', { render: function * () { yield 1 } as any }))
+        .toThrow(/async tag "rejectingTag" is not supported in the sync-only build/)
+      expect(() => engine.registerTag('rejectingTag', { render: eval('(async function () {})') }))
+        .toThrow(/async tag "rejectingTag" is not supported in the sync-only build/)
     })
     it('should throw RenderError when filter throws', async function () {
       const src = '{{1|throwingFilter}}'
@@ -188,8 +189,9 @@ describe('error', function () {
       })
     })
     it('should contain stack in err.stack', async function () {
-      await expect(engine.parseAndRender('{%rejectingTag%}')).rejects.toMatchObject({
-        message: expect.stringContaining('intended reject'),
+      // SYNC FORK: exercise a synchronous throwing tag (rejectingTag is no longer registerable)
+      await expect(engine.parseAndRender('{%throwingTag%}')).rejects.toMatchObject({
+        message: expect.stringContaining('intended error'),
         stack: expect.stringMatching(/at .*:\d+:\d+/)
       })
     })

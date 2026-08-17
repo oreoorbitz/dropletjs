@@ -1,5 +1,5 @@
 import { FS } from './fs'
-import { assert, LiquidAsync, toLiquidAsync } from '../util'
+import { assert } from '../util'
 
 export interface LoaderOptions {
   fs: FS;
@@ -17,8 +17,8 @@ export enum LookupType {
 export class Loader {
   public shouldLoadRelative: (referencedFile: string) => boolean
   private options: LoaderOptions
-  private contains: LiquidAsync<NonNullable<FS['containsSync']>>
-  private exists: LiquidAsync<FS['existsSync']>
+  private contains: NonNullable<FS['containsSync']>
+  private exists: NonNullable<FS['existsSync']>
 
   constructor (options: LoaderOptions) {
     this.options = options
@@ -31,25 +31,21 @@ export class Loader {
       this.shouldLoadRelative = (_referencedFile: string) => false
     }
     const fs = options.fs
-    this.contains = toLiquidAsync(
-      fs.contains?.bind(fs) || (async () => true),
-      fs.containsSync?.bind(fs) || (() => true)
-    )
-    this.exists = toLiquidAsync(
-      fs.exists?.bind(fs) || (async () => false),
-      fs.existsSync?.bind(fs)
-    )
+    this.contains = fs.containsSync?.bind(fs) || (() => true)
+    const existsSync = fs.existsSync?.bind(fs)
+    assert(existsSync, '`fs.existsSync` is required in the sync-only build')
+    this.exists = existsSync!
   }
 
-  public * lookup (file: string, type: LookupType, sync?: boolean, currentFile?: string): Generator<unknown, string, string> {
+  public lookup (file: string, type: LookupType, sync?: boolean, currentFile?: string): string {
     const dirs = this.options[type]
     for (const filepath of this.candidates(file, dirs, currentFile)) {
       let allowed = false
       for (const dir of dirs) {
-        if (yield this.contains(!!sync, dir, filepath)) { allowed = true; break }
+        if (this.contains(dir, filepath)) { allowed = true; break }
       }
       if (!allowed) continue
-      if (yield this.exists(!!sync, filepath)) return filepath
+      if (this.exists(filepath)) return filepath
     }
     throw this.lookupError(file, dirs)
   }

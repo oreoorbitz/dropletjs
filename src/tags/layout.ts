@@ -18,21 +18,21 @@ export default class extends Tag {
     this.args = new Hash(this.tokenizer, liquid.options.keyValueSeparator)
     this.templates = parser.parseTokens(remainTokens)
   }
-  * render (ctx: Context, emitter: Emitter): Generator<unknown, unknown, unknown> {
+  render (ctx: Context, emitter: Emitter): void {
     const { liquid, args, file } = this
     const { renderer } = liquid
     if (file === undefined) {
       ctx.setRegister('blockMode', BlockMode.OUTPUT)
-      yield renderer.renderTemplates(this.templates, ctx, emitter)
+      renderer.renderTemplates(this.templates, ctx, emitter)
       return
     }
-    const filepath = (yield renderFilePath(this.file, ctx, liquid)) as string
+    const filepath = renderFilePath(this.file, ctx, liquid) as string
     assert(filepath, () => `illegal file path "${filepath}"`)
-    const templates = (yield liquid._parseLayoutFile(filepath, ctx.sync, this.currentFile)) as Template[]
+    const templates = liquid._parseLayoutFile(filepath, ctx.sync, this.currentFile)
 
     // render remaining contents and store rendered results
     ctx.setRegister('blockMode', BlockMode.STORE)
-    const html = yield renderer.renderTemplates(this.templates, ctx)
+    const html = renderer.renderTemplates(this.templates, ctx)
     const blocks = ctx.getRegister('blocks', {} as Record<string, any>)
 
     // set whole content to anonymous block if anonymous doesn't specified
@@ -40,8 +40,8 @@ export default class extends Tag {
     ctx.setRegister('blockMode', BlockMode.OUTPUT)
 
     // render the layout file use stored blocks
-    ctx.push(createScope((yield args.render(ctx)) as Scope))
-    yield renderer.renderTemplates(templates, ctx, emitter)
+    ctx.push(createScope(args.render(ctx) as Scope))
+    renderer.renderTemplates(templates, ctx, emitter)
     ctx.pop()
   }
 
@@ -49,7 +49,7 @@ export default class extends Tag {
     const templates = this.templates.slice()
 
     if (partials && isString(this.file)) {
-      templates.push(...(yield this.liquid._parsePartialFile(this.file, true, this.currentFile)) as Template[])
+      templates.push(...this.liquid._parsePartialFile(this.file, true, this.currentFile))
     }
 
     return templates

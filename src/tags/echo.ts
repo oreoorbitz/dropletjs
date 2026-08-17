@@ -11,10 +11,9 @@ export default class extends Tag {
       this.value = new Value(this.tokenizer.readFilteredValue(), this.liquid)
     }
   }
-  * render (ctx: Context, emitter: Emitter): Generator<unknown, void, unknown> {
+  render (ctx: Context, emitter: Emitter): void {
     if (!this.value) return
-    const val = yield this.value.value(ctx, false)
-    emitter.write(val)
+    emitter.write(this.value.value(ctx, false))
   }
 
   public * arguments (): Arguments {

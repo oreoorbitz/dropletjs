@@ -149,11 +149,13 @@ describe('tags/if', function () {
     const html = liquid.parseAndRenderSync(src, scope)
     return expect(html).toBe('true')
   })
-  it('should support async variables', async () => {
+  // SYNC FORK: Promise scope values are no longer awaited; `var` stays a Promise,
+  // so `var == 'var'` is false and nothing renders.
+  it('should not await async variables (sync-only build)', async () => {
     const src = `{%if var == 'var' %}success{%endif%}`
     const scope = { 'var': Promise.resolve('var') }
     const html = await liquid.parseAndRender(src, scope)
-    return expect(html).toBe('success')
+    return expect(html).toBe('')
   })
   it('should support drop as condition variable', async () => {
     const src = `{% if drop %}yes{% else %}no{% endif %}`
@@ -232,10 +234,12 @@ describe('tags/if', function () {
       it('should support a grouped expression inside a bracket index', function () {
         expect(ge.evalValueSync('arr[(i | plus: 1)]', { arr: [10, 20, 30], i: 1 })).toBe(30)
       })
-      it('should support an async filter inside a grouped expression', async function () {
+      // SYNC FORK: filters returning Promises are rejected with a clear error at render time
+      it('should reject an async filter inside a grouped expression', async function () {
         ge.registerFilter('asyncUpcase', (v: string) => Promise.resolve(String(v).toUpperCase()))
         const src = '{% if (name | asyncUpcase) == "BAR" %}yes{% else %}no{% endif %}'
-        expect(await ge.parseAndRender(src, { name: 'bar' })).toBe('yes')
+        await expect(ge.parseAndRender(src, { name: 'bar' }))
+          .rejects.toThrow(/async filter "asyncUpcase" is not supported in the sync-only build/)
       })
     })
     describe('when disabled', function () {

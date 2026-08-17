@@ -21,9 +21,8 @@ export class Output extends TemplateImpl<OutputToken> implements Template {
       filters.push(new Filter(token, outputEscape, liquid))
     }
   }
-  public * render (ctx: Context, emitter: Emitter): IterableIterator<unknown> {
-    const val = yield this.value.value(ctx, false)
-    emitter.write(val)
+  public render (ctx: Context, emitter: Emitter): void {
+    emitter.write(this.value.value(ctx, false))
   }
 
   public * arguments (): Arguments {

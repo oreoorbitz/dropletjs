@@ -4,7 +4,7 @@ import { Drop } from './drop'
 export class BlockDrop extends Drop {
   constructor (
     // the block render from layout template
-    private superBlockRender: (emitter: Emitter) => IterableIterator<unknown> | string = () => ''
+    private superBlockRender: (emitter: Emitter) => unknown = () => ''
   ) {
     super()
   }
@@ -12,9 +12,9 @@ export class BlockDrop extends Drop {
    * Provide parent access in child block by
    * {{ block.super }}
    */
-  public * super (): IterableIterator<unknown> {
+  public super (): unknown {
     const emitter = new SimpleEmitter()
-    yield this.superBlockRender(emitter)
+    this.superBlockRender(emitter)
     return emitter.buffer
   }
 }

@@ -35,7 +35,7 @@ describe('#renderFile()', function () {
   it('should default root to cwd', async function () {
     engine = new Liquid()
     const html = await engine.renderFile('package.json')
-    return expect(html).toContain('"name": "liquidjs"')
+    return expect(html).toContain('"name": "dropletjs"')
   })
   it('should render file with context', async function () {
     engine = new Liquid({ root: views, extname: '.html' })

@@ -20,9 +20,16 @@ export function createTagClass (options: TagImplOptions): TagClass {
         options.parse.call(this, token, tokens)
       }
     }
-    * render (ctx: Context, emitter: Emitter): TagRenderReturn {
-      const hash = (yield new Hash(this.token.args, ctx.opts.keyValueSeparator).render(ctx)) as Record<string, any>
-      return yield options.render.call(this, ctx, emitter, hash)
+    render (ctx: Context, emitter: Emitter): TagRenderReturn {
+      const hash = new Hash(this.token.args, ctx.opts.keyValueSeparator).render(ctx)
+      const result = options.render.call(this, ctx, emitter, hash)
+      if (result !== null && result !== undefined &&
+          ((result as any).then !== undefined || isFunction((result as any).next))) {
+        // suppress unhandled rejection of the abandoned async result
+        if (isFunction((result as any).then)) (result as Promise<unknown>).then(undefined, () => undefined)
+        throw new Error(`async tag "${this.name}" is not supported in the sync-only build of liquidjs`)
+      }
+      return result
     }
   }
 }

@@ -40,18 +40,18 @@ export default class extends Tag {
       .start()
   }
 
-  * render (ctx: Context, emitter: Emitter): Generator<unknown, unknown, unknown> {
+  render (ctx: Context, emitter: Emitter): void {
     const r = this.liquid.renderer
 
     for (const { value, test, templates } of this.branches) {
-      const v = yield value.value(ctx, ctx.opts.lenientIf)
+      const v = value.value(ctx, ctx.opts.lenientIf)
       if (test(v, ctx)) {
-        yield r.renderTemplates(templates, ctx, emitter)
+        r.renderTemplates(templates, ctx, emitter)
         return
       }
     }
 
-    yield r.renderTemplates(this.elseTemplates, ctx, emitter)
+    r.renderTemplates(this.elseTemplates, ctx, emitter)
   }
 
   public * children (): Generator<unknown, Template[]> {

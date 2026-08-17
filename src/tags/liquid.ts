@@ -8,8 +8,8 @@ export default class extends Tag {
     const tokens = this.tokenizer.readLiquidTagTokens(this.liquid.options)
     this.templates = parser.parseTokens(tokens)
   }
-  * render (ctx: Context, emitter: Emitter): Generator<unknown, void, unknown> {
-    yield this.liquid.renderer.renderTemplates(this.templates, ctx, emitter)
+  render (ctx: Context, emitter: Emitter): void {
+    this.liquid.renderer.renderTemplates(this.templates, ctx, emitter)
   }
 
   public * children (): Generator<unknown, Template[]> {

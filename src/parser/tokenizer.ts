@@ -32,20 +32,22 @@ export class Tokenizer {
     return new Expression(this.readExpressionTokens())
   }
 
-  * readExpressionTokens (): IterableIterator<Token> {
+  readExpressionTokens (): Token[] {
+    const tokens: Token[] = []
     while (this.p < this.N) {
       const operator = this.readOperator()
       if (operator) {
-        yield operator
+        tokens.push(operator)
         continue
       }
       const operand = this.readValue()
       if (operand) {
-        yield operand
+        tokens.push(operand)
         continue
       }
-      return
+      return tokens
     }
+    return tokens
   }
   readOperator (): OperatorToken | undefined {
     this.skipBlank()
@@ -441,16 +443,18 @@ export class Tokenizer {
     return new QuotedToken(this.input, begin, this.p, this.file)
   }
 
-  * readFileNameTemplate (options: NormalizedFullOptions): IterableIterator<TopLevelToken> {
+  readFileNameTemplate (options: NormalizedFullOptions): TopLevelToken[] {
     const { outputDelimiterLeft } = options
     const htmlStopStrings = [',', ' ', '\r', '\n', '\t', outputDelimiterLeft]
     const htmlStopStringSet = new Set(htmlStopStrings)
+    const tokens: TopLevelToken[] = []
     // break on ',' and ' ', outputDelimiterLeft only stops HTML token
     while (this.p < this.N && !htmlStopStringSet.has(this.peek())) {
-      yield this.match(outputDelimiterLeft)
+      tokens.push(this.match(outputDelimiterLeft)
         ? this.readOutputToken(options)
-        : this.readHTMLToken(htmlStopStrings)
+        : this.readHTMLToken(htmlStopStrings))
     }
+    return tokens
   }
 
   match (word: string) {

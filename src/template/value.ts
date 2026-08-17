@@ -21,12 +21,12 @@ export class Value {
     this.filters = token.filters.map(token => new Filter(token, this.getFilter(liquid, token.name), liquid))
   }
 
-  public * value (ctx: Context, lenient?: boolean): Generator<unknown, unknown, unknown> {
+  public value (ctx: Context, lenient?: boolean): unknown {
     lenient = lenient || (ctx.opts.lenientIf && this.filters.length > 0 && this.filters[0].name === 'default')
-    let val = yield this.initial.evaluate(ctx, lenient)
+    let val = this.initial.evaluate(ctx, lenient)
 
     for (const filter of this.filters) {
-      val = yield filter.render(val, ctx)
+      val = filter.render(val, ctx)
     }
     return val
   }

@@ -19,8 +19,8 @@ export default class extends Tag {
     this.tokenizer.advance()
     this.value = new Value(this.tokenizer.readFilteredValue(), this.liquid)
   }
-  * render (ctx: Context): Generator<unknown, void, unknown> {
-    ctx.bottom()[this.key] = yield this.value.value(ctx, this.liquid.options.lenientIf)
+  render (ctx: Context): void {
+    ctx.bottom()[this.key] = this.value.value(ctx, this.liquid.options.lenientIf)
   }
 
   public * arguments (): Arguments {

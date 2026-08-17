@@ -37,7 +37,8 @@ describe('render', function () {
         done()
       })
     })
-    it('should render to html stream asynchronously', function (done) {
+    // SYNC FORK: tags returning Promises are rejected; the stream errors.
+    it('should error the stream for async tags (sync-only build)', function (done) {
       const scope = new Context()
       class CustomTag extends Tag {
         render () {
@@ -48,18 +49,16 @@ describe('render', function () {
       }
       const tpls = [
         new HTML({ getContent: () => '<p>' } as HTMLToken),
-        new CustomTag({ content: 'foo', args: '', name: 'foo' } as TagToken, [], {} as any),
+        new CustomTag({ content: 'foo', args: '', name: 'foo', input: 'foo', file: undefined, getText: () => 'foo', getPosition: () => [1, 1] } as unknown as TagToken, [], {} as any),
         new HTML({ getContent: () => '</p>' } as HTMLToken)
       ]
       const stream = render.renderTemplatesToNodeStream(tpls, scope)
-      let result = ''
-      stream.on('data', (data) => {
-        result += data
-      })
-      stream.on('end', () => {
-        expect(result).toBe('<p>async tag</p>')
+      stream.on('data', () => undefined)
+      stream.on('error', (err: Error) => {
+        expect(err.message).toMatch(/is not supported in the sync-only build/)
         done()
       })
+      stream.on('end', () => done(new Error('stream should have errored')))
     })
   })
 })

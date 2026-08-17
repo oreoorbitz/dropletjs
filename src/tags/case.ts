@@ -54,22 +54,22 @@ export default class extends Tag {
     stream.start()
   }
 
-  * render (ctx: Context, emitter: Emitter): Generator<unknown, void, unknown> {
+  render (ctx: Context, emitter: Emitter): void {
     const r = this.liquid.renderer
-    const target = toValue(yield this.value.value(ctx, ctx.opts.lenientIf))
+    const target = toValue(this.value.value(ctx, ctx.opts.lenientIf))
     let branchHit = false
     for (const branch of this.branches) {
       for (const valueToken of branch.values) {
-        const value = yield evalToken(valueToken, ctx, ctx.opts.lenientIf)
+        const value = evalToken(valueToken, ctx, ctx.opts.lenientIf)
         if (equals(target, value)) {
-          yield r.renderTemplates(branch.templates, ctx, emitter)
+          r.renderTemplates(branch.templates, ctx, emitter)
           branchHit = true
           break
         }
       }
     }
     if (!branchHit) {
-      yield r.renderTemplates(this.elseTemplates, ctx, emitter)
+      r.renderTemplates(this.elseTemplates, ctx, emitter)
     }
   }
 

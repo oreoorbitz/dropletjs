@@ -29,10 +29,12 @@ describe('tags/for', function () {
     return expect(html).toBe('abc')
   })
 
-  it('should support promise of array', async function () {
+  // SYNC FORK: Promise collections are no longer awaited; a Promise is not
+  // enumerable, so the for loop renders nothing.
+  it('should not await promise of array (sync-only build)', async function () {
     const src = '{%for c in promiseArray%}{{c}}{%endfor%}'
     const html = await liquid.parseAndRender(src, scope)
-    return expect(html).toBe('abc')
+    return expect(html).toBe('')
   })
 
   it('should support object', async function () {

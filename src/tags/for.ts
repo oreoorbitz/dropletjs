@@ -41,18 +41,18 @@ export default class extends Tag {
 
     stream.start()
   }
-  * render (ctx: Context, emitter: Emitter): Generator<unknown, void | string, Template[]> {
+  render (ctx: Context, emitter: Emitter): void {
     const r = this.liquid.renderer
-    let collection = toEnumerable(yield evalToken(this.collection, ctx))
+    let collection = toEnumerable(evalToken(this.collection, ctx))
 
     if (!collection.length) {
-      yield r.renderTemplates(this.elseTemplates, ctx, emitter)
+      r.renderTemplates(this.elseTemplates, ctx, emitter)
       return
     }
 
     const continueKey = 'continue-' + this.variable + '-' + this.collection.getText()
     ctx.push(createScope({ continue: ctx.getRegister(continueKey, {}) }))
-    const hash = (yield this.hash.render(ctx)) as Record<string, any>
+    const hash = this.hash.render(ctx)
     ctx.pop()
 
     const modifiers = this.liquid.options.orderedFilterParameters
@@ -71,7 +71,7 @@ export default class extends Tag {
     for (const item of collection) {
       scope[this.variable] = item
       ctx.continueCalled = ctx.breakCalled = false
-      yield r.renderTemplates(this.templates, ctx, emitter)
+      r.renderTemplates(this.templates, ctx, emitter)
       if (ctx.breakCalled) break
       scope.forloop.next()
     }

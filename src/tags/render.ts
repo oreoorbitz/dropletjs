@@ -54,38 +54,38 @@ export default class extends Tag {
     }
     this.hash = new Hash(tokenizer, liquid.options.keyValueSeparator)
   }
-  * render (ctx: Context, emitter: Emitter): Generator<unknown, void, unknown> {
+  render (ctx: Context, emitter: Emitter): void {
     const { liquid, hash } = this
-    const filepath = (yield renderFilePath(this.file, ctx, liquid)) as string
+    const filepath = renderFilePath(this.file, ctx, liquid) as string
     assert(filepath, () => `illegal file path "${filepath}"`)
 
     const childCtx = ctx.spawn()
     const scope = childCtx.bottom()
-    __assign(scope, yield hash.render(ctx))
+    __assign(scope, hash.render(ctx))
     if (this.with) {
       const { value, alias } = this.with
-      scope[alias || filepath] = yield evalToken(value, ctx)
+      scope[alias || filepath] = evalToken(value, ctx)
     }
 
     if (this.forBinding) {
       const { value, alias } = this.forBinding
-      const collection = toEnumerable(yield evalToken(value, ctx))
+      const collection = toEnumerable(evalToken(value, ctx))
       scope['forloop'] = new ForloopDrop(collection.length, value.getText(), alias as string)
       for (const item of collection) {
         scope[alias as string] = item
-        const templates = (yield liquid._parsePartialFile(filepath, childCtx.sync, this.currentFile)) as Template[]
-        yield liquid.renderer.renderTemplates(templates, childCtx, emitter)
+        const templates = liquid._parsePartialFile(filepath, childCtx.sync, this.currentFile)
+        liquid.renderer.renderTemplates(templates, childCtx, emitter)
         scope['forloop'].next()
       }
     } else {
-      const templates = (yield liquid._parsePartialFile(filepath, childCtx.sync, this.currentFile)) as Template[]
-      yield liquid.renderer.renderTemplates(templates, childCtx, emitter)
+      const templates = liquid._parsePartialFile(filepath, childCtx.sync, this.currentFile)
+      liquid.renderer.renderTemplates(templates, childCtx, emitter)
     }
   }
 
   public * children (partials: boolean, sync: boolean): Generator<unknown, Template[]> {
     if (partials && isString(this.file)) {
-      return (yield this.liquid._parsePartialFile(this.file, sync, this.currentFile)) as Template[]
+      return this.liquid._parsePartialFile(this.file, sync, this.currentFile) as Template[]
     }
     return []
   }
@@ -157,7 +157,7 @@ export function parseFilePath (tokenizer: Tokenizer, liquid: Liquid, parser: Par
     }
     return file
   }
-  const tokens = [...tokenizer.readFileNameTemplate(liquid.options)]
+  const tokens = tokenizer.readFileNameTemplate(liquid.options)
   const templates = optimize(parser.parseTokens(tokens))
   return templates === 'none' ? undefined : templates
 }
@@ -168,8 +168,8 @@ function optimize (templates: Template[]): string | Template[] {
   return templates
 }
 
-export function * renderFilePath (file: ParsedFileName, ctx: Context, liquid: Liquid): IterableIterator<unknown> {
+export function renderFilePath (file: ParsedFileName, ctx: Context, liquid: Liquid): unknown {
   if (typeof file === 'string') return file
   if (Array.isArray(file)) return liquid.renderer.renderTemplates(file, ctx)
-  return yield evalToken(file, ctx)
+  return evalToken(file, ctx)
 }

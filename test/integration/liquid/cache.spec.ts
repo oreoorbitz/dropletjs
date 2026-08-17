@@ -82,7 +82,9 @@ describe('LiquidOptions#cache', function () {
       expect(await engine.renderFile('files/bar')).toBe('foo')
       expect(await engine.renderFile('files/coo')).toBe('foo')
     })
-    it('should respect cache={ async read, async write } option', async function () {
+    // SYNC FORK: async cache read/write is unsupported; cache.read returning a
+    // Promise now fails fast with a clear error instead of caching garbage.
+    it('should reject cache={ async read, async write } option', async function () {
       const cached: { [key: string]: Template[] | undefined } = {}
       const engine = new Liquid({
         root: '/root/',
@@ -94,13 +96,7 @@ describe('LiquidOptions#cache', function () {
         }
       })
       mock({ '/root/files/foo.html': 'foo' })
-      mock({ '/root/files/bar.html': 'bar' })
-      mock({ '/root/files/coo.html': 'coo' })
-      expect(await engine.renderFile('files/foo')).toBe('foo')
-      expect(await engine.renderFile('files/bar')).toBe('bar')
-      expect(await engine.renderFile('files/coo')).toBe('coo')
-      mock({ '/root/files/coo.html': 'COO' })
-      expect(await engine.renderFile('files/coo')).toBe('coo')
+      await expect(engine.renderFile('files/foo')).rejects.toThrow('async cache is not supported in the sync-only build')
     })
     it('should handle concurrent cache read/write', async function () {
       const engine = new Liquid({

@@ -24,8 +24,8 @@ export default class extends Tag {
     this.tokenizer.assert(this.candidates.length, () => `empty candidates: "${token.getText()}"`)
   }
 
-  * render (ctx: Context, emitter: Emitter): Generator<unknown, unknown, unknown> {
-    const group = (yield evalToken(this.group, ctx)) as ValueToken
+  render (ctx: Context, emitter: Emitter): unknown {
+    const group = evalToken(this.group, ctx) as ValueToken
     const fingerprint = `cycle:${group}:` + this.candidates.join(',')
     const groups = ctx.getRegister('cycle', {} as Record<string, number>)
     let idx = groups[fingerprint]
@@ -37,7 +37,7 @@ export default class extends Tag {
     const candidate = this.candidates[idx]
     idx = (idx + 1) % this.candidates.length
     groups[fingerprint] = idx
-    return yield evalToken(candidate, ctx)
+    return evalToken(candidate, ctx)
   }
 
   public * arguments (): Arguments {

@@ -17,7 +17,7 @@ template.
 ## Install
 
 ```bash
-npm install dropletjs
+npm install @oreoorbitz/dropletjs
 ```
 
 Requires Node.js >= 14.
@@ -28,7 +28,7 @@ The API is the same as LiquidJS's **synchronous** methods (`parseSync`,
 `renderSync`, `renderFileSync`, `parseAndRenderSync`, …):
 
 ```js
-const { Liquid } = require('dropletjs')
+const { Liquid } = require('@oreoorbitz/dropletjs')
 
 const engine = new Liquid()
 const tpl = engine.parse('Hello, {{ name | upcase }}!')
@@ -46,7 +46,7 @@ const html = engine.renderFileSync('page', { products })
 ES modules / TypeScript:
 
 ```ts
-import { Liquid } from 'dropletjs'
+import { Liquid } from '@oreoorbitz/dropletjs'
 ```
 
 ## Benchmarks
@@ -87,7 +87,7 @@ dropletjs is **sync-only by design**:
 
 ### Migrating from LiquidJS
 
-1. Replace `require('liquidjs')` with `require('dropletjs')`.
+1. Replace `require('liquidjs')` with `require('@oreoorbitz/dropletjs')`.
 2. Replace `await engine.render(...)` with `engine.renderSync(...)` (and the
    equivalent `*Sync` variants elsewhere).
 3. Remove/replace any async custom filters or tags, or pre-resolve their data.

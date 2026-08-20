@@ -5,6 +5,7 @@ import { Operators, Expression } from '../render'
 import { NormalizedFullOptions, defaultOptions } from '../liquid-options'
 import { FilterArg } from './filter-arg'
 import { whiteSpaceCtrl } from './whitespace-ctrl'
+import { getNativeTokenizer, nativeTokenizerCompatible, NativeTokenizerModule } from './native'
 
 export class Tokenizer {
   p: number
@@ -120,13 +121,74 @@ export class Tokenizer {
     return [key.getText(), value]
   }
 
+  private warnedNativeIncompatible = false
+
   readTopLevelTokens (options: NormalizedFullOptions = defaultOptions): TopLevelToken[] {
+    // Optional native tokenizer: only for full-input top-level scans with
+    // default delimiters/greedy (the native port hardcodes those; see
+    // src/parser/native.ts). Token construction stays in JS.
+    const flag = options.useNativeTokenizer
+    if (flag !== false && this.rawBeginAt < 0 && this.p === 0 && this.N === this.input.length) {
+      if (nativeTokenizerCompatible(options)) {
+        const native = getNativeTokenizer()
+        if (native && typeof native.tokenizeFlat === 'function') return this.readTopLevelTokensNative(native, options)
+        if (flag === true) {
+          throw new Error(
+            'useNativeTokenizer: native tokenizer module is not available ' +
+            '(install the optional "dropletjs-native" package, set DROPLETJS_NATIVE_PATH, ' +
+            'or build native/tokenizer.node via native/build.sh)'
+          )
+        }
+      } else if (flag === true && !this.warnedNativeIncompatible) {
+        this.warnedNativeIncompatible = true
+        // eslint-disable-next-line no-console
+        console.warn('useNativeTokenizer: native tokenizer requires default delimiters ({% %}/{{ }}), greedy=true and trimTag*/trimOutput*=false; falling back to JS tokenizer')
+      }
+    }
     const tokens: TopLevelToken[] = []
     while (this.p < this.N) {
       const token = this.readTopLevelToken(options)
       tokens.push(token)
     }
     whiteSpaceCtrl(tokens, options)
+    return tokens
+  }
+
+  /**
+   * Native fast path: scan in C++ (flat Int32Array + one string result),
+   * reconstruct real token objects in JS. Whitespace control is already
+   * applied natively, so `whiteSpaceCtrl` must NOT run on these tokens.
+   * On any native-side tokenization error we redo the scan in JS, which
+   * rethrows the canonical JS TokenizationError (identical error semantics).
+   */
+  private readTopLevelTokensNative (native: NativeTokenizerModule, options: NormalizedFullOptions): TopLevelToken[] {
+    const { input, file } = this
+    let f
+    try {
+      f = native.tokenizeFlat!(input)
+    } catch (e) {
+      const tokens: TopLevelToken[] = []
+      while (this.p < this.N) tokens.push(this.readTopLevelToken(options))
+      whiteSpaceCtrl(tokens, options)
+      return tokens // unreachable unless JS disagrees with native; JS throws first
+    }
+    const n = f.count
+    const tokens = new Array<TopLevelToken>(n)
+    for (let i = 0; i < n; i++) {
+      const kind = f.kinds[i]
+      const begin = f.begins[i]
+      const end = f.ends[i]
+      if (kind === 16 /* TokenKind.HTML */) {
+        const t = new HTMLToken(input, begin, end, file)
+        t.trimLeft = f.contentBegins[i] - begin
+        t.trimRight = end - f.contentEnds[i]
+        tokens[i] = t
+      } else if (kind === 8 /* TokenKind.Output */) {
+        tokens[i] = new OutputToken(input, begin, end, options, file)
+      } else { /* TokenKind.Tag */
+        tokens[i] = new TagToken(input, begin, end, options, file)
+      }
+    }
     return tokens
   }
 

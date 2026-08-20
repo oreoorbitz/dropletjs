@@ -1,6 +1,6 @@
 import { assert, isArray, isString, isFunction } from './util'
 import { getDateTimeFormat } from './util/intl'
-import { LRU, LiquidCache } from './cache'
+import { LiquidCache, CacheStore, LRUCacheStore, isCacheStore, adaptCacheStore } from './cache'
 import { FS, LookupType } from './fs'
 import * as fs from './fs/fs-impl'
 import { defaultOperators, Operators } from './render'
@@ -26,8 +26,21 @@ export interface LiquidOptions {
   jekyllWhere?: boolean;
   /** Add a extname (if filepath doesn't include one) before template file lookup. Eg: setting to `".html"` will allow including file by basename. Defaults to `""`. */
   extname?: string;
-  /** Whether or not to cache resolved templates. Defaults to `false`. */
-  cache?: boolean | number | LiquidCache;
+  /** Whether or not to cache resolved templates. Defaults to `false`.
+   * Accepts:
+   * - `true` — an `LRUCacheStore` with `maxEntries: 1024` (exposed as `engine.templateCache`)
+   * - a number `N` — an `LRUCacheStore` with `maxEntries: N` (`<= 0` disables)
+   * - a legacy `LiquidCache` (`{ read, write, remove }`)
+   * - a `CacheStore` (`{ get, set, has?, delete?, clear? }`), e.g. `new LRUCacheStore({ maxEntries, ttl })`
+   */
+  cache?: boolean | number | LiquidCache | CacheStore;
+  /**
+   * Freeze parsed templates deeply (template arrays, tag instances and plain
+   * objects/arrays reachable from them; tokens are intentionally NOT frozen so
+   * render-time filter caching still works). Guarantees parse-once semantics
+   * and protects against accidental template mutation. Defaults to `false`.
+   */
+  immutableTemplates?: boolean;
   /** Use JavaScript Truthiness. Defaults to `false`. */
   jsTruthy?: boolean;
   /** If set, treat the `filepath` parameter in `{%include filepath %}` and `{%layout filepath%}` as a variable, otherwise as a literal value. Defaults to `true`. */
@@ -89,6 +102,21 @@ export interface LiquidOptions {
   orderedFilterParameters?: boolean;
   /** Allow parenthesized expressions as operands in conditions and loops, e.g. `{% if (foo | upcase) == "BAR" %}`. This is a non-standard extension to Liquid. Defaults to `false`. */
   groupedExpressions?: boolean;
+  /**
+   * Use the optional native (C++ N-API) top-level tokenizer when available.
+   * - `undefined` (default, "auto"): use the native tokenizer if the optional
+   *   `dropletjs-native` package (or a local `native/tokenizer.node` build) can
+   *   be loaded AND the delimiter/greedy options are the defaults; otherwise
+   *   silently fall back to the JS tokenizer.
+   * - `false`: always use the JS tokenizer.
+   * - `true`: require the native tokenizer — `parse()` throws if the module
+   *   cannot be loaded; if the delimiter/greedy options are incompatible with
+   *   the native port, a one-time `console.warn` is emitted and the JS
+   *   tokenizer is used instead.
+   * Tokenization results are identical either way (differential-tested);
+   * this is a pure performance option affecting parse time only.
+   */
+  useNativeTokenizer?: boolean;
   /** For DoS handling, limit total length of templates parsed in one `parse()` call. A typical PC can handle 1e8 (100M) characters without issues. */
   parseLimit?: number;
   /** For DoS handling, limit total time (in ms) for each `render()` call. */
@@ -120,7 +148,29 @@ export interface RenderOptions {
   renderLimit?: number;
   /** For DoS handling, limit new objects creation, including array concat/join/strftime, etc. A typical PC can handle 1e9 (1G) memory without issue.. */
   memoryLimit?: number;
+  /**
+   * Declare the passed context object frozen for this render (the developer
+   * promises not to mutate it during render and that pure filters are pure).
+   * Enables render-scoped memoization of filters registered with
+   * `{ pure: true }`. Defaults to `false`.
+   */
+  frozenContext?: boolean;
+  /**
+   * Shape hint for this render: a shape name registered via
+   * `engine.registerShape(name, schema)` or an inline schema. Declared dotted
+   * paths are read via precompiled direct property accessors instead of the
+   * generic scope traversal, when the context matches the declared shape
+   * (cheaply verified; silently falls back to generic lookup on mismatch).
+   */
+  shape?: string | ShapeSchema;
 }
+
+/**
+ * A shape schema: either an array of dotted paths (`['product.title',
+ * 'product.meta.vendor']`) or a nested object whose keys enumerate allowed
+ * properties (`{ product: { title: true, meta: { vendor: true } } }`).
+ */
+export type ShapeSchema = string[] | Record<string, any>;
 
 export interface RenderFileOptions extends RenderOptions {
   lookupType?: LookupType;
@@ -131,6 +181,8 @@ interface NormalizedOptions extends LiquidOptions {
   partials?: string[];
   layouts?: string[];
   cache?: LiquidCache;
+  /** The developer-facing CacheStore behind `cache`, when one is in use. */
+  cacheStore?: CacheStore;
   outputEscape?: OutputEscape;
 }
 
@@ -168,6 +220,7 @@ export interface NormalizedFullOptions extends NormalizedOptions {
   parseLimit: number;
   renderLimit: number;
   memoryLimit: number;
+  immutableTemplates: boolean;
 }
 
 export const defaultOptions: NormalizedFullOptions = {
@@ -204,7 +257,8 @@ export const defaultOptions: NormalizedFullOptions = {
   groupedExpressions: false,
   memoryLimit: Infinity,
   parseLimit: Infinity,
-  renderLimit: Infinity
+  renderLimit: Infinity,
+  immutableTemplates: false
 }
 
 export function normalize (options: LiquidOptions): NormalizedFullOptions {
@@ -214,10 +268,23 @@ export function normalize (options: LiquidOptions): NormalizedFullOptions {
   }
   if (options.hasOwnProperty('cache')) {
     let cache: LiquidCache | undefined
-    if (typeof options.cache === 'number') cache = options.cache > 0 ? new LRU(options.cache) : undefined
-    else if (typeof options.cache === 'object') cache = options.cache
-    else cache = options.cache ? new LRU(1024) : undefined
+    let store: CacheStore | undefined
+    const opt = options.cache
+    if (typeof opt === 'number') {
+      store = opt > 0 ? new LRUCacheStore({ maxEntries: opt }) : undefined
+      cache = store ? adaptCacheStore(store) : undefined
+    } else if (isCacheStore(opt)) {
+      store = opt
+      cache = adaptCacheStore(store)
+    } else if (typeof opt === 'object' && opt) {
+      // legacy LiquidCache { read, write, remove }
+      cache = opt as LiquidCache
+    } else if (opt) {
+      store = new LRUCacheStore({ maxEntries: 1024 })
+      cache = adaptCacheStore(store)
+    }
     options.cache = cache
+    ;(options as NormalizedOptions).cacheStore = store
   }
   options = { ...defaultOptions, ...(options.jekyllInclude ? { dynamicPartials: false } : {}), ...options }
   if ((!options.fs!.dirname || !options.fs!.sep) && options.relativeReference) {

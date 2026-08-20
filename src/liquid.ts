@@ -6,7 +6,9 @@ import { Render } from './render'
 import { Parser } from './parser'
 import { tags } from './tags'
 import { filters } from './filters'
-import { LiquidOptions, normalizeDirectoryList, NormalizedFullOptions, normalize, RenderOptions, RenderFileOptions } from './liquid-options'
+import { LiquidOptions, normalizeDirectoryList, NormalizedFullOptions, normalize, RenderOptions, RenderFileOptions, ShapeSchema } from './liquid-options'
+import { CacheStore } from './cache'
+import { PreloadOptions, PreloadResult, PreloadGraphNode, PreloadIdleHandle, preloadFiles, buildPreloadGraph } from './preload'
 
 function assertSyncImplementation (kind: string, name: string, impl: Function) {
   const ctorName = impl && impl.constructor ? impl.constructor.name : ''
@@ -26,6 +28,19 @@ export class Liquid {
   public readonly parser: Parser
   public readonly filters: Record<string, FilterImplOptions> = Object.create(null)
   public readonly tags: Record<string, TagClass> = Object.create(null)
+  /** registered shape schemas, see `registerShape()` */
+  public readonly shapes: Record<string, ShapeSchema> = Object.create(null)
+
+  /**
+   * Handle to the template cache store when the `cache` option is a
+   * CacheStore (including the `LRUCacheStore` created for `cache: true` /
+   * `cache: N`). Use it for manual control: warm (`set`), invalidate
+   * (`delete`/`clear`) and inspect (`stats`, `size`). `undefined` when
+   * caching is disabled or a legacy `{ read, write, remove }` cache was given.
+   */
+  public get templateCache (): CacheStore | undefined {
+    return this.options.cacheStore
+  }
 
   public constructor (opts: LiquidOptions = {}) {
     this.options = normalize(opts)
@@ -41,7 +56,15 @@ export class Liquid {
 
   public _render (tpl: Template[], scope: Context | object | undefined, renderOptions: RenderOptions): any {
     const ctx = scope instanceof Context ? scope : new Context(scope, this.options, renderOptions, { liquid: this })
-    return this.renderer.renderTemplates(tpl, ctx)
+    // frozenContext: install a render-scoped memo Map for declared-pure
+    // filters; cleared after this render completes.
+    const frozen = renderOptions.frozenContext || ctx.frozenContext
+    if (frozen && ctx.pureFilterMemo === undefined) ctx.pureFilterMemo = new Map()
+    try {
+      return this.renderer.renderTemplates(tpl, ctx)
+    } finally {
+      if (ctx.pureFilterMemo !== undefined) ctx.pureFilterMemo.clear()
+    }
   }
   public async render (tpl: Template[], scope?: object, renderOptions?: RenderOptions): Promise<any> {
     return this._render(tpl, scope, { ...renderOptions, sync: false })
@@ -107,10 +130,60 @@ export class Liquid {
     return this._evalValue(str, scope)
   }
 
-  public registerFilter (name: string, filter: FilterImplOptions) {
+  public registerFilter (name: string, filter: FilterImplOptions, opts?: { pure?: boolean }) {
     if (isFunction(filter)) assertSyncImplementation('filter', name, filter as any)
     else if (filter && isFunction((filter as any).handler)) assertSyncImplementation('filter', name, (filter as any).handler)
+    if (opts && opts.pure !== undefined) {
+      filter = isFunction(filter)
+        ? { handler: filter, raw: false, pure: opts.pure }
+        : { ...(filter as object), pure: opts.pure } as FilterImplOptions
+    }
     this.filters[name] = filter
+  }
+  /**
+   * Register a named context shape. Use per render via
+   * `renderFileSync(file, ctx, { shape: 'product' })` to enable precompiled
+   * property-path accessors for the declared dotted paths.
+   */
+  public registerShape (name: string, schema: ShapeSchema) {
+    this.shapes[name] = schema
+  }
+  public unregisterShape (name: string) {
+    delete this.shapes[name]
+  }
+  /**
+   * Predictive preload (setup-time only; the engine stays synchronous).
+   * Batch-parses the given files (glob patterns like `**\/*.liquid` are
+   * expanded against `root` when using the default Node fs) into the template
+   * cache, yielding to the event loop every `concurrency` files. With
+   * `{ deep: true }` (default) the static include/render/layout dependency
+   * closure is preloaded too. Only useful when a template cache is configured
+   * (`cache` option) — without a cache the parsed templates are discarded.
+   */
+  public async preload (files: string | string[], opts: PreloadOptions = {}): Promise<PreloadResult> {
+    return preloadFiles(this, isString(files) ? [files] : files, opts)
+  }
+  /**
+   * Return the static include/render/layout dependency tree of the given root
+   * files (parses files as needed, populating the cache as a side effect).
+   */
+  public preloadGraph (rootFiles: string | string[], opts: PreloadOptions = {}): PreloadGraphNode[] {
+    return buildPreloadGraph(this, isString(rootFiles) ? [rootFiles] : rootFiles, opts)
+  }
+  /**
+   * Schedule a preload on the next idle tick (setImmediate-based) for
+   * non-critical templates. Returns a handle with the result promise and a
+   * `cancel()` function; cancelling before the tick resolves with `null`.
+   */
+  public preloadOnIdle (files: string | string[], opts: PreloadOptions = {}): PreloadIdleHandle {
+    let cancelled = false
+    const promise = new Promise<PreloadResult | null>((resolve, reject) => {
+      setImmediate(() => {
+        if (cancelled) return resolve(null)
+        this.preload(files, opts).then(resolve, reject)
+      })
+    })
+    return { promise, cancel: () => { cancelled = true } }
   }
   public unregisterFilter (name: string) {
     delete this.filters[name]

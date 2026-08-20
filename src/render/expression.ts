@@ -74,6 +74,10 @@ function evalFilteredValueToken (token: FilteredValueToken, ctx: Context, lenien
   return val
 }
 
+const SHAPE_CELL = '__lqShapeCell'
+// marker for "no usable shape key" (non-string segments)
+const NO_SHAPE_KEY = ''
+
 function evalPropertyAccessToken (token: PropertyAccessToken, ctx: Context, lenient: boolean): unknown {
   // Fast path: all props are static identifier/quoted segments — no per-segment evalToken calls
   let allStatic = true
@@ -88,6 +92,25 @@ function evalPropertyAccessToken (token: PropertyAccessToken, ctx: Context, leni
       if (token.variable) {
         const variable = evalToken(token.variable, ctx, lenient)
         return ctx._getFromScope(variable, props)
+      }
+      // shape-hint fast path: the resolved getter (or null) is cached on the
+      // token keyed by the shape Map identity (tokens are stable across
+      // renders; the Map is stable per compiled schema). Steady-state cost
+      // per property access: one property read + one identity compare.
+      const getters = ctx.shapeGetters
+      if (getters && props.length > 1) {
+        let cell: { map: Map<string, any>, getter: any } = (token as any)[SHAPE_CELL]
+        if (cell === undefined || cell.map !== getters) {
+          let key = NO_SHAPE_KEY
+          let ok = true
+          for (let i = 0; i < props.length; i++) {
+            if (typeof props[i] !== 'string') { ok = false; break }
+          }
+          if (ok) key = (props as string[]).join('.')
+          cell = { map: getters, getter: key === NO_SHAPE_KEY ? null : (getters.get(key) ?? null) }
+          Object.defineProperty(token, SHAPE_CELL, { value: cell, enumerable: false, configurable: true, writable: true })
+        }
+        if (cell.getter) return cell.getter(ctx.environments, ctx.globals)
       }
       return ctx._get(props)
     }

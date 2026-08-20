@@ -1,0 +1,14 @@
+{
+  "name": "dropletjs-native",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Optional native (C++ N-API) tokenizer for dropletjs / the liquid-sync fork. Prebuilds per platform/arch are the endgame; build locally with build.sh.",
+  "main": "native-tokenizer.js",
+  "scripts": {
+    "install": "sh build.sh || true",
+    "build": "sh build.sh"
+  },
+  "engines": {
+    "node": ">=14"
+  }
+}

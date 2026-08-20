@@ -3,6 +3,7 @@ import { Drop } from '../drop/drop'
 import { __assign } from 'tslib'
 import { NormalizedFullOptions, defaultOptions, RenderOptions } from '../liquid-options'
 import { createScope, Scope } from './scope'
+import { getCompiledShape, verifyShape, ShapeGetter } from './shape'
 import { hasOwnProperty, isArray, isNil, isUndefined, isString, isFunction, isNumber, toLiquid, InternalUndefinedVariableError, isObject, Limiter, toValue, readArrayElement } from '../util'
 
 type PropertyKey = string | number;
@@ -42,6 +43,20 @@ export class Context {
   public ownPropertyOnly: boolean;
   public memoryLimit: Limiter;
   public renderLimit: Limiter;
+  /**
+   * Render-scoped memo Map for declared-pure filters; created by
+   * `Liquid._render` when the `frozenContext` render option is set and
+   * cleared after the render. `undefined` disables memoization.
+   */
+  public pureFilterMemo?: Map<string, unknown>;
+  /** frozenContext render option (developer-declared immutable context) */
+  public frozenContext: boolean;
+  /**
+   * Active precompiled shape getters (dotted path -> direct accessor), set
+   * when the `shape` render option is given and the context matches the
+   * declared shape. `undefined` = generic lookup.
+   */
+  public shapeGetters?: Map<string, ShapeGetter>;
   public constructor (env: object = {}, opts: NormalizedFullOptions = defaultOptions, renderOptions: RenderOptions = {}, { memoryLimit, renderLimit, liquid }: { memoryLimit?: Limiter, renderLimit?: Limiter, liquid?: any } = {}) {
     this.sync = !!renderOptions.sync
     this.opts = opts
@@ -52,6 +67,19 @@ export class Context {
     this.memoryLimit = memoryLimit ?? new Limiter('memory alloc', renderOptions.memoryLimit ?? opts.memoryLimit)
     this.renderLimit = renderLimit ?? new Limiter('template render', getPerformance().now() + (renderOptions.renderLimit ?? opts.renderLimit))
     this.liquid = liquid
+    this.frozenContext = !!renderOptions.frozenContext
+    if (renderOptions.shape !== undefined && liquid) {
+      const schema = isString(renderOptions.shape)
+        ? liquid.shapes[renderOptions.shape]
+        : renderOptions.shape
+      if (schema) {
+        const shape = getCompiledShape(schema)
+        if (verifyShape(shape, this.environments, this.globals)) {
+          this.shapeGetters = shape.getters
+        }
+        // shape mismatch: silently fall back to generic lookup
+      }
+    }
   }
   public getRegister<T> (key: string, defaultValue: T = undefined as T): T {
     return (this.registers[key] = this.registers[key] || defaultValue)
@@ -79,6 +107,9 @@ export class Context {
     return this._get(paths)
   }
   public _get (paths: (PropertyKey | Drop)[]): unknown {
+    // NOTE: the shape-hint fast path lives in evalPropertyAccessToken (the
+    // only template hot-path caller), where the joined path key is cached on
+    // the token. Direct _get callers use the generic traversal.
     const scope = this.findScope(paths[0] as string) // first prop should always be a string
     return this._getFromScope(scope, paths)
   }

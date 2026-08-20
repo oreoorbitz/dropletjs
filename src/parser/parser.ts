@@ -1,4 +1,4 @@
-import { Limiter, assert, isTagToken, isOutputToken, ParseError } from '../util'
+import { Limiter, assert, isTagToken, isOutputToken, ParseError, deepFreezeTemplates } from '../util'
 import { Tokenizer } from './tokenizer'
 import { ParseStream } from './parse-stream'
 import { TopLevelToken, OutputToken } from '../tokens'
@@ -30,7 +30,9 @@ export class Parser {
     this.parseLimit.use(html.length)
     const tokenizer = new Tokenizer(html, this.liquid.options.operators, filepath, undefined, this.liquid.options.groupedExpressions)
     const tokens = tokenizer.readTopLevelTokens(this.liquid.options)
-    return this.parseTokens(tokens)
+    const templates = this.parseTokens(tokens)
+    if (this.liquid.options.immutableTemplates) deepFreezeTemplates(templates)
+    return templates
   }
   public parseTokens (tokens: TopLevelToken[]) {
     let token

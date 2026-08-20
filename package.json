@@ -1,8 +1,8 @@
 {
   "name": "@oreoorbitz/dropletjs",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "oreoorbitz",
-  "description": "A high-performance, synchronous-only fork of LiquidJS \u2014 2-4x faster rendering with zero async overhead",
+  "description": "A high-performance, synchronous-only fork of LiquidJS — 2-4x faster rendering with zero async overhead",
   "main": "dist/droplet.cjs.js",
   "module": "dist/droplet.mjs",
   "types": "dist/index.d.ts",
